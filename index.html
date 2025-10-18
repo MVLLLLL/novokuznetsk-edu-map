@@ -678,7 +678,7 @@
         "Центральный": [53.75, 87.12]
       };
 
-      let closestDistrict = "Другой";
+      let closestDistrict = null;
       let minDist = Infinity;
       for (const [name, [cLat, cLon]] of Object.entries(districts)) {
         const dist = haversine(lat, lon, cLat, cLon);
@@ -687,7 +687,7 @@
           closestDistrict = name;
         }
       }
-      return minDist < 10 ? closestDistrict : "Другой";
+      return minDist < 10 ? closestDistrict : null;
     }
 
     const districtPopulation = {
@@ -695,8 +695,7 @@
       "Новоильинский": 48000,
       "Заводской": 62000,
       "Орджоникидзевский": 51000,
-      "Центральный": 38000,
-      "Другой": 10000
+      "Центральный": 38000
     };
 
     function parseCSV(text) {
@@ -891,8 +890,10 @@
         const districts = {};
         udoList.forEach(udo => {
           const district = getDistrict(udo.lat, udo.lon);
-          if (!districts[district]) districts[district] = [];
-          districts[district].push(udo);
+          if (district) {
+            if (!districts[district]) districts[district] = [];
+            districts[district].push(udo);
+          }
         });
 
         const districtEntries = Object.entries(districts)
