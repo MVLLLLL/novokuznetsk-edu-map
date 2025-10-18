@@ -1,0 +1,872 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Образовательная карта Новокузнецка</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    :root {
+      --primary: #4361ee;
+      --secondary: #3f9b8d;
+      --light: #f8f9fa;
+      --dark: #212529;
+      --card-bg: #ffffff;
+      --shadow: 0 6px 24px rgba(0, 0, 0, 0.08);
+      --udo-color: #4361ee;
+      --in-radius-color: #28a745;
+      --out-of-radius-color: #dc3545;
+      --border-radius: 16px;
+      --gap: 16px;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: linear-gradient(135deg, #f0f4ff, #e6f7f2);
+      color: var(--dark);
+      line-height: 1.6;
+      padding: 20px;
+      overflow-x: hidden;
+    }
+
+    /* Анимации загрузки */
+    .loading-container {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      background: linear-gradient(135deg, #4361ee, #3f9b8d);
+      z-index: 1000;
+      opacity: 1;
+      transition: opacity 0.5s ease-out;
+    }
+
+    .loading-container.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .loading-spinner {
+      width: 60px;
+      height: 60px;
+      border: 4px solid rgba(255, 255, 255, 0.3);
+      border-top: 4px solid white;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    .loading-text {
+      color: white;
+      font-size: 1.2rem;
+      margin-top: 20px;
+      text-align: center;
+      font-weight: 600;
+    }
+
+    /* Анимации для заголовка */
+    header {
+      text-align: center;
+      margin-bottom: var(--gap);
+      max-width: 900px;
+      margin-left: auto;
+      margin-right: auto;
+      opacity: 0;
+      transform: translateY(30px);
+      animation: fadeInUp 1s ease-out forwards;
+      animation-delay: 0.3s;
+    }
+
+    @keyframes fadeInUp {
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    h1 {
+      font-size: 2.2rem;
+      margin-bottom: 12px;
+      background: linear-gradient(90deg, var(--primary), var(--secondary));
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      font-weight: 800;
+      position: relative;
+    }
+
+    h1::after {
+      content: '';
+      position: absolute;
+      bottom: -8px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 80px;
+      height: 4px;
+      background: linear-gradient(90deg, var(--primary), var(--secondary));
+      border-radius: 2px;
+      opacity: 0;
+      animation: slideIn 0.8s ease-out forwards;
+      animation-delay: 0.8s;
+    }
+
+    @keyframes slideIn {
+      0% {
+        width: 0;
+        opacity: 0;
+      }
+      70% {
+        width: 100px;
+        opacity: 1;
+      }
+      100% {
+        width: 80px;
+        opacity: 1;
+      }
+    }
+
+    .subtitle {
+      color: #555;
+      font-size: 1.1rem;
+      max-width: 700px;
+      margin: 0 auto;
+      opacity: 0;
+      transform: translateY(20px);
+      animation: fadeInUp 1s ease-out forwards;
+      animation-delay: 0.5s;
+    }
+
+    /* Анимации для вкладок */
+    .tabs {
+      display: flex;
+      gap: 12px;
+      margin-bottom: var(--gap);
+      flex-wrap: wrap;
+      justify-content: center;
+      opacity: 0;
+      transform: translateY(20px);
+      animation: fadeInUp 1s ease-out forwards;
+      animation-delay: 0.7s;
+    }
+
+    .tab-btn {
+      padding: 10px 20px;
+      background: #eef4ff;
+      border: none;
+      border-radius: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .tab-btn::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(67, 97, 238, 0.2), transparent);
+      transition: left 0.5s;
+    }
+
+    .tab-btn:hover::before {
+      left: 100%;
+    }
+
+    .tab-btn.active {
+      background: var(--primary);
+      color: white;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(67, 97, 238, 0.3);
+    }
+
+    .tab-content {
+      display: none;
+      background: var(--card-bg);
+      padding: 24px;
+      border-radius: var(--border-radius);
+      box-shadow: var(--shadow);
+      margin-bottom: var(--gap);
+      opacity: 0;
+      transform: scale(0.95);
+      transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .tab-content.active {
+      display: block;
+      opacity: 1;
+      transform: scale(1);
+    }
+
+    /* Анимации для карточек статистики */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: var(--gap);
+    }
+
+    .stat-card {
+      background: var(--card-bg);
+      padding: 20px;
+      border-radius: var(--border-radius);
+      box-shadow: var(--shadow);
+      text-align: center;
+      opacity: 0;
+      transform: translateY(30px);
+      transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .stat-card.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .stat-value {
+      font-size: 2rem;
+      font-weight: 700;
+      color: var(--primary);
+      margin: 8px 0;
+      position: relative;
+    }
+
+    .stat-value::after {
+      content: '';
+      position: absolute;
+      bottom: -5px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 30px;
+      height: 3px;
+      background: var(--secondary);
+      border-radius: 2px;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    .stat-card:hover .stat-value::after {
+      opacity: 1;
+    }
+
+    .stat-label {
+      font-size: 0.95rem;
+      color: #555;
+    }
+
+    #map {
+      height: 520px;
+      width: 100%;
+      border-radius: var(--border-radius);
+      box-shadow: var(--shadow);
+      margin-bottom: var(--gap);
+      opacity: 0;
+      transform: scale(0.98);
+      transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    #map.loaded {
+      opacity: 1;
+      transform: scale(1);
+    }
+
+    /* Анимации для легенды */
+    .legend {
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 24px;
+      margin-bottom: var(--gap);
+      opacity: 0;
+      transform: translateY(20px);
+      animation: fadeInUp 1s ease-out forwards;
+      animation-delay: 1.2s;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.95rem;
+      color: #444;
+      opacity: 0;
+      animation: fadeIn 0.8s ease-out forwards;
+    }
+
+    .legend-item:nth-child(1) { animation-delay: 1.3s; }
+    .legend-item:nth-child(2) { animation-delay: 1.4s; }
+    .legend-item:nth-child(3) { animation-delay: 1.5s; }
+
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    .legend-color {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      transition: transform 0.3s ease;
+    }
+
+    .legend-item:hover .legend-color {
+      transform: scale(1.2);
+    }
+
+    .udo-legend { background: var(--udo-color); }
+    .in-radius-legend { background: var(--in-radius-color); }
+    .out-of-radius-legend { background: var(--out-of-radius-color); }
+
+    /* Анимации для районов */
+    .districts {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: var(--gap);
+      margin-top: 16px;
+    }
+
+    .district-card {
+      background: white;
+      padding: 16px;
+      border-radius: 12px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
+      border-left: 4px solid var(--primary);
+      opacity: 0;
+      transform: translateX(-30px);
+      transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .district-card.visible {
+      opacity: 1;
+      transform: translateX(0);
+    }
+
+    .district-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+    }
+
+    .district-name {
+      font-weight: 700;
+      margin-bottom: 6px;
+      color: var(--primary);
+      font-size: 1.1rem;
+    }
+
+    .district-score {
+      font-size: 1.3rem;
+      font-weight: 700;
+      color: var(--secondary);
+      margin-top: 8px;
+      position: relative;
+    }
+
+    .district-score::before {
+      content: '★';
+      color: var(--secondary);
+      margin-right: 5px;
+    }
+
+    .btn {
+      display: inline-block;
+      padding: 8px 14px;
+      margin-top: 10px;
+      background: #28a745;
+      color: white;
+      border-radius: 6px;
+      text-decoration: none;
+      font-size: 0.9rem;
+      font-weight: 600;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      border: 1px solid transparent;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .btn::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+      transition: left 0.5s;
+    }
+
+    .btn:hover::before {
+      left: 100%;
+    }
+
+    .btn:hover {
+      background: #218838;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3);
+    }
+
+    .project-description {
+      line-height: 1.7;
+      color: #333;
+      opacity: 0;
+      transform: translateY(20px);
+      animation: fadeInUp 1s ease-out forwards;
+      animation-delay: 0.9s;
+    }
+
+    .project-description h3 {
+      margin-top: 16px;
+      margin-bottom: 10px;
+      color: var(--primary);
+      position: relative;
+    }
+
+    .project-description h3::after {
+      content: '';
+      position: absolute;
+      bottom: -5px;
+      left: 0;
+      width: 40px;
+      height: 3px;
+      background: var(--secondary);
+      border-radius: 2px;
+    }
+
+    /* Интерактивные эффекты при наведении */
+    .stat-card, .district-card {
+      cursor: pointer;
+    }
+
+    .stat-card:hover, .district-card:hover {
+      transition: all 0.3s ease;
+    }
+
+    @media (max-width: 768px) {
+      h1 { font-size: 1.8rem; }
+      #map { height: 420px; }
+      .tabs { flex-direction: column; align-items: center; }
+      .tab-btn { width: 100%; max-width: 300px; }
+    }
+  </style>
+</head>
+<body>
+  <!-- Экран загрузки -->
+  <div class="loading-container" id="loadingContainer">
+    <div>
+      <div class="loading-spinner"></div>
+      <div class="loading-text">Загрузка данных...</div>
+    </div>
+  </div>
+
+  <header>
+    <h1>Образовательная карта Новокузнецка</h1>
+    <p class="subtitle">Анализ доступности учреждений дополнительного образования для школьников</p>
+  </header>
+
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="map">Карта</button>
+    <button class="tab-btn" data-tab="stats">Статистика</button>
+    <button class="tab-btn" data-tab="about">О проекте</button>
+  </div>
+
+  <!-- Карта -->
+  <div id="map" class="tab-content active"></div>
+
+  <!-- Статистика -->
+  <div id="stats-tab" class="tab-content">
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-label">Учреждений ДО</div>
+        <div class="stat-value" id="udo-count">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Школ в Новокузнецке</div>
+        <div class="stat-value" id="school-count">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Школ в зоне 3 км</div>
+        <div class="stat-value" id="in-radius-count">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Школ вне зоны 3 км</div>
+        <div class="stat-value" id="out-of-radius-count">—</div>
+      </div>
+    </div>
+
+    <h3 style="margin-top: 24px; margin-bottom: 16px;">Рейтинг районов по доступности УДО</h3>
+    <div class="districts" id="districts-list"></div>
+  </div>
+
+  <!-- О проекте -->
+  <div id="about-tab" class="tab-content">
+    <div class="project-description">
+      <p>Данный проект направлен на анализ географической доступности учреждений дополнительного образования (УДО) для школьников города Новокузнецка.</p>
+
+      <h3>Цель</h3>
+      <p>Определить, какие школы находятся вне 3-километровой зоны от ближайшего УДО, чтобы выявить «образовательные пустыни» и предложить меры по улучшению доступности.</p>
+
+      <h3>Методология</h3>
+      <ul>
+        <li>Использованы открытые данные по школам России и УДО Кемеровской области.</li>
+        <li>Фильтрация объектов по координатам, принадлежащим Новокузнецку.</li>
+        <li>Расчёт расстояний по формуле Хаверсина.</li>
+        <li>Визуализация на интерактивной карте с цветовой дифференциацией.</li>
+      </ul>
+
+      <h3>Практическая польза</h3>
+      <p>Результаты могут быть использованы администрацией города для планирования новых УДО, организации транспорта или мобильных кружков в отдалённых районах.</p>
+    </div>
+  </div>
+
+  <div class="legend">
+    <div class="legend-item">
+      <div class="legend-color udo-legend"></div>
+      <span>Учреждение доп. образования</span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-color in-radius-legend"></div>
+      <span>Школа в радиусе 3 км</span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-color out-of-radius-legend"></div>
+      <span>Школа вне радиуса 3 км</span>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    // === ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ===
+    function haversine(lat1, lon1, lat2, lon2) {
+      const R = 6371;
+      const toRad = Math.PI / 180;
+      const dLat = (lat2 - lat1) * toRad;
+      const dLon = (lon2 - lon1) * toRad;
+      const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                Math.cos(lat1 * toRad) * Math.cos(lat2 * toRad) *
+                Math.sin(dLon / 2) * Math.sin(dLon / 2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      return R * c;
+    }
+
+    function getDistrict(lat, lon) {
+      if (lat > 53.69 && lat < 53.85 && lon > 87.00 && lon < 87.30) {
+        if (lon > 87.18) return "Орджоникидзевский";
+      }
+      if (lat > 53.65 && lat < 53.78 && lon > 86.95 && lon < 87.15) {
+        if (lat < 53.75 && lon < 87.12) return "Заводской";
+      }
+      if (lat > 53.78 && lon > 86.95 && lon < 87.25) {
+        return "Куйбышевский";
+      }
+      if (lat > 53.70 && lat < 53.82 && lon > 87.05 && lon < 87.35) {
+        if (lat > 53.75 && lon > 87.10) return "Новоильинский";
+      }
+      if (lat > 53.72 && lat < 53.80 && lon > 87.05 && lon < 87.20) {
+        if (lat < 53.76 && lon < 87.15) return "Центральный";
+      }
+
+      const districts = {
+        "Куйбышевский": [53.82, 87.15],
+        "Новоильинский": [53.76, 87.22],
+        "Заводской": [53.73, 87.05],
+        "Орджоникидзевский": [53.72, 87.23],
+        "Центральный": [53.75, 87.12]
+      };
+
+      let closestDistrict = "Другой";
+      let minDist = Infinity;
+      for (const [name, [cLat, cLon]] of Object.entries(districts)) {
+        const dist = haversine(lat, lon, cLat, cLon);
+        if (dist < minDist) {
+          minDist = dist;
+          closestDistrict = name;
+        }
+      }
+      return minDist < 10 ? closestDistrict : "Другой";
+    }
+
+    const districtPopulation = {
+      "Куйбышевский": 55000,
+      "Новоильинский": 48000,
+      "Заводской": 62000,
+      "Орджоникидзевский": 51000,
+      "Центральный": 38000,
+      "Другой": 10000
+    };
+
+    // Парсинг CSV с корректной обработкой кавычек и UTF-8
+    function parseCSV(text) {
+      const lines = text.trim().split('\n');
+      const result = [];
+      for (let line of lines) {
+        if (!line.trim()) continue;
+        const fields = [];
+        let inQuotes = false;
+        let current = '';
+        for (let i = 0; i < line.length; i++) {
+          const char = line[i];
+          if (char === '"') {
+            if (inQuotes && line[i + 1] === '"') {
+              current += '"';
+              i++;
+            } else {
+              inQuotes = !inQuotes;
+            }
+          } else if (char === ',' && !inQuotes) {
+            fields.push(current);
+            current = '';
+          } else {
+            current += char;
+          }
+        }
+        fields.push(current);
+        result.push(fields);
+      }
+      return result;
+    }
+
+    function parseUDOCsv(text) {
+      if (!text || text.trim() === '') {
+        console.warn('Файл УДО.csv пуст или не загружен');
+        return [];
+      }
+      const lines = text.trim().split('\n').slice(1); // Пропускаем заголовок
+      const udoList = [];
+      for (const line of lines) {
+        const parts = line.split(';');
+        if (parts.length >= 4) {
+          const name = parts[0].trim();
+          const addr = parts[1].trim();
+          const lat = parseFloat(parts[2]);
+          const lon = parseFloat(parts[3]);
+
+          if (!isNaN(lat) && !isNaN(lon)) {
+            udoList.push({ name, addr, lat, lon });
+          }
+        }
+      }
+      return udoList;
+    }    
+
+    function parseSchoolsCsv(text) {
+      const rows = parseCSV(text);
+      const schools = [];
+      const minLat = 53.60, maxLat = 54.00;
+      const minLon = 86.80, maxLon = 87.50;
+
+      for (const row of rows) {
+        if (row.length < 6) continue;
+        const id = row[0];
+        const name = row[1].replace(/""/g, '"').trim();
+        const type = row[2];
+        const addr = row[3].replace(/""/g, '"').trim();
+        const lat = parseFloat(row[4]);
+        const lon = parseFloat(row[5]);
+
+        if (!isNaN(lat) && !isNaN(lon) && lat >= minLat && lat <= maxLat && lon >= minLon && lon <= maxLon) {
+          schools.push({ id, name, type, addr, lat, lon });
+        }
+      }
+      return schools;
+    }
+
+    // === ВКЛАДКИ ===
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        btn.classList.add('active');
+        const tabId = btn.dataset.tab;
+        if (tabId === 'map') {
+          document.getElementById('map').classList.add('active');
+        } else {
+          document.getElementById(tabId + '-tab').classList.add('active');
+        }
+      });
+    });
+
+    // === АНИМАЦИИ ДЛЯ СТАТИСТИКИ ===
+    function animateStats() {
+      const statCards = document.querySelectorAll('.stat-card');
+      statCards.forEach((card, index) => {
+        setTimeout(() => {
+          card.classList.add('visible');
+        }, index * 200);
+      });
+    }
+
+    function animateDistricts() {
+      const districtCards = document.querySelectorAll('.district-card');
+      districtCards.forEach((card, index) => {
+        setTimeout(() => {
+          card.classList.add('visible');
+        }, index * 150);
+      });
+    }
+
+    // === ОСНОВНАЯ ФУНКЦИЯ ===
+    async function loadAndProcess() {
+      try {
+        // Загружаем оба файла
+        const [udoRes, schoolRes] = await Promise.all([
+          fetch('udo.csv'),
+          fetch('schools.csv')
+        ]);
+        if (!udoRes.ok || !schoolRes.ok) {
+          throw new Error('Один или оба CSV-файла не найдены');
+        }
+
+        // УДО.csv — в UTF-8 → просто получаем текст
+        const udoText = await udoRes.text();
+
+        // schools.csv — в windows-1251 → декодируем вручную
+        const schoolArrayBuffer = await schoolRes.arrayBuffer();
+        const decoder = new TextDecoder('windows-1251');
+        const schoolText = decoder.decode(schoolArrayBuffer);
+
+        const udoList = parseUDOCsv(udoText);
+        const schools = parseSchoolsCsv(schoolText);
+
+        if (udoList.length === 0) throw new Error('Не загружены УДО');
+        if (schools.length === 0) throw new Error('Не найдено школ в Новокузнецке');
+
+        // Группировка по районам
+        const districts = {};
+        udoList.forEach(udo => {
+          const district = getDistrict(udo.lat, udo.lon);
+          if (!districts[district]) districts[district] = [];
+          districts[district].push(udo);
+        });
+
+        // Поиск школ в радиусе
+        const schoolsInRadius = new Set();
+        const schoolsOutOfRadius = [];
+
+        schools.forEach(school => {
+          let inRadius = false;
+          for (const udo of udoList) {
+            const dist = haversine(udo.lat, udo.lon, school.lat, school.lon);
+            if (dist <= 3) {
+              schoolsInRadius.add(school);
+              inRadius = true;
+              break;
+            }
+          }
+          if (!inRadius) schoolsOutOfRadius.push(school);
+        });
+
+        // Обновление статистики
+        document.getElementById('udo-count').textContent = udoList.length;
+        document.getElementById('school-count').textContent = schools.length;
+        document.getElementById('in-radius-count').textContent = schoolsInRadius.size;
+        document.getElementById('out-of-radius-count').textContent = schoolsOutOfRadius.length;
+
+        // Рейтинг районов
+        const districtEntries = Object.entries(districts)
+          .map(([name, udos]) => {
+            const pop = districtPopulation[name] || 10000;
+            const accessibility = (udos.length / (pop / 1000)).toFixed(2);
+            return { name, count: udos.length, population: pop, accessibility };
+          })
+          .sort((a, b) => b.accessibility - a.accessibility);
+
+        const districtsListEl = document.getElementById('districts-list');
+        districtsListEl.innerHTML = districtEntries.map(d => `
+          <div class="district-card">
+            <div class="district-name">${d.name}</div>
+            <div class="stat-label">Учреждений ДО: ${d.count}</div>
+            <div class="stat-label">Население: ${d.population.toLocaleString()}</div>
+            <div class="district-score">${d.accessibility} на тыс. чел.</div>
+          </div>
+        `).join('');
+
+        // Карта
+        const map = L.map('map').setView([53.758, 87.108], 11);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(map);
+
+        // УДО
+        udoList.forEach(udo => {
+          const marker = L.circleMarker([udo.lat, udo.lon], {
+            radius: 8,
+            fillColor: '#4361ee',
+            color: '#fff',
+            weight: 2,
+            opacity: 1,
+            fillOpacity: 0.9
+          }).addTo(map);
+          marker.bindPopup(`<b>${udo.name}</b><br>${udo.addr}`);
+        });
+
+        // Школы в радиусе
+        schoolsInRadius.forEach(school => {
+          const marker = L.circleMarker([school.lat, school.lon], {
+            radius: 6,
+            fillColor: '#28a745',
+            color: '#fff',
+            weight: 1,
+            fillOpacity: 0.7
+          }).addTo(map);
+          const popup = `<b>🏫 ${school.name}</b><br>${school.addr}<br><br>
+            <a href="https://yandex.ru/maps/?rtext=~${school.lat},${school.lon}&rtt=auto" target="_blank" class="btn">Маршрут</a>`;
+          marker.bindPopup(popup);
+        });
+
+        // Школы вне радиуса
+        schoolsOutOfRadius.forEach(school => {
+          const marker = L.circleMarker([school.lat, school.lon], {
+            radius: 6,
+            fillColor: '#dc3545',
+            color: '#fff',
+            weight: 1,
+            fillOpacity: 0.7
+          }).addTo(map);
+          const popup = `<b>🏫 ${school.name}</b><br>${school.addr}<br><br>
+            <a href="https://yandex.ru/maps/?rtext=~${school.lat},${school.lon}&rtt=auto" target="_blank" class="btn">Маршрут</a>`;
+          marker.bindPopup(popup);
+        });
+
+        // Скрываем экран загрузки и показываем карту
+        setTimeout(() => {
+          document.getElementById('loadingContainer').classList.add('hidden');
+          document.getElementById('map').classList.add('loaded');
+          animateStats();
+        }, 1000);
+
+      } catch (err) {
+        console.error('Ошибка:', err);
+        document.getElementById('map').innerHTML = `<div style="padding:30px;text-align:center;color:#d32f2f;font-weight:500;">Ошибка: ${err.message}</div>`;
+        setTimeout(() => {
+          document.getElementById('loadingContainer').classList.add('hidden');
+        }, 1000);
+      }
+    }
+
+    // Загрузка при готовности DOM
+    document.addEventListener('DOMContentLoaded', loadAndProcess);
+
+    // Анимация для вкладки статистики
+    document.querySelector('[data-tab="stats"]').addEventListener('click', () => {
+      setTimeout(() => {
+        animateStats();
+        animateDistricts();
+      }, 300);
+    });
+  </script>
+</body>
+</html>
